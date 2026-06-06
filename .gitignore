@@ -1,0 +1,9 @@
+# Odoo runtime
+.filestore/
+*.pyc
+__pycache__/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
