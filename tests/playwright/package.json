@@ -1,0 +1,12 @@
+{
+  "name": "qatar-property-industry-real-estate-uat",
+  "private": true,
+  "scripts": {
+    "test": "playwright test",
+    "test:industry": "playwright test tests/industry_real_estate_uat.spec.js",
+    "install:browsers": "playwright install chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1"
+  }
+}
