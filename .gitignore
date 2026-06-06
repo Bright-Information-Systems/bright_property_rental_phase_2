@@ -1,7 +1,11 @@
 # Odoo runtime
 .filestore/
+.filestore_sandbox/
 *.pyc
 __pycache__/
+
+# Reference industry package (OEEL — local sandbox only, do not publish)
+industry_real_estate-19.0.1.3/
 
 # OS / editor
 .DS_Store
