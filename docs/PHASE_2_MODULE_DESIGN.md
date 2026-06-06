@@ -1,11 +1,11 @@
-# Phase 2 — Module Design (Provisional)
+# Phase 2 — Module Design
 
 **Bright Information Systems W.L.L**  
 **Module:** `qatar_property_base`  
-**Status:** Provisional — finalize after Phase 1.5 architecture decision  
+**Foundation:** `industry_real_estate` (Option B — signed in Phase 1.5)  
 **Version target:** `19.0.1.0.0`
 
-> **No Odoo module code created yet.** This document is the technical design reference for Phase 2 implementation.
+> **No Odoo module code created yet.** Client approval required before implementation.
 
 ---
 
@@ -13,10 +13,10 @@
 
 | Principle | Rule |
 |-----------|------|
+| **Extend industry package** | Do not recreate building/unit master — extend `industry_real_estate` models |
 | **No accounting override** | No custom `account.move` posting, no payment hooks, no revenue recognition logic |
-| **Native integration** | Extend standard models; depend on `sale_renting`, `contacts`, `crm`, `account` (read-only) |
+| **Qatar layer only** | `qatar_property_base` adds Qatar fields, districts, partner roles, property register |
 | **Phase scope only** | No reservation, PDC, portal, rent schedule, or Arabic reports in Phase 2 |
-| **Architecture gate** | Model targets in §3 marked **provisional** until Phase 1.5 sign-off |
 | **Demo safe** | Demo XML only; no cron, no controllers, no automated business workflows |
 
 ---
@@ -29,270 +29,228 @@
     'name': 'Qatar Property Base',
     'version': '19.0.1.0.0',
     'category': 'Real Estate',
-    'summary': 'Qatar property classification, districts, and regulatory fields',
+    'summary': 'Qatar property extensions on industry_real_estate',
     'depends': [
-        'base',
+        'industry_real_estate',
         'contacts',
-        'product',
-        'sale',
-        'sale_renting',
         'crm',
-        # 'industry_real_estate',  # TBD — only if Option B/C chosen in Phase 1.5
+        'account',
     ],
     'data': [
         'security/ir.model.access.csv',
         'data/qatar_district.xml',
-        'data/qatar_unit_type.xml',
         'data/qatar_zone.xml',
-        'views/property_building_views.xml',
-        'views/product_template_views.xml',
+        'data/qatar_unit_type.xml',
+        'views/x_buildings_views.xml',
+        'views/account_analytic_account_views.xml',
         'views/res_partner_views.xml',
         'reports/property_register_report.xml',
+        'data/qatar_demo_buildings.xml',
+        'data/qatar_demo_units.xml',
+        'data/qatar_demo_partners.xml',
     ],
     'installable': True,
     'application': False,
 }
 ```
 
----
-
-## 3. Data Models
-
-### 3.1 `property.building` (new)
-
-**Purpose:** Qatar building master — optional hierarchy above units.
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `name` | Char | Building name (e.g. Al Rayyan Tower) |
-| `code` | Char | Internal code |
-| `district_id` | Many2one → `qatar.district` | Qatar district |
-| `zone_id` | Many2one → `qatar.zone` | Zone / area (optional) |
-| `street` | Char | Address line |
-| `city` | Char | Default: Doha |
-| `baladiya_ref` | Char | Baladiya reference |
-| `rera_building_ref` | Char | RERA building reference |
-| `plot_no` | Char | Plot number |
-| `active` | Boolean | Archive flag |
-| `unit_ids` | One2many | Link to units (see §3.2) |
-
-**Provisional link to Phase 1:** Maps from `product.category` (Al Rayyan Tower, Doha Business Center).
-
-**Architecture gate note:**
-
-- **Option A:** `property.building` + `product.template.building_id` — primary design
-- **Option B:** May defer to `industry_real_estate` building model — redesign required
-- **Option C:** Building model shared; unit link varies by contract type
+**Not a dependency:** `sale_renting` — Phase 2+ uses `industry_real_estate` subscription contracts.
 
 ---
 
-### 3.2 Unit model — `product.template` extension (provisional)
+## 3. Official Industry Models (from `industry_real_estate`)
 
-**Purpose:** Extend rentable products (Phase 1 units) with Qatar fields.
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `building_id` | Many2one → `property.building` | Building link |
-| `district_id` | Many2one → `qatar.district` | District (can mirror building) |
-| `zone_id` | Many2one → `qatar.zone` | Zone |
-| `unit_type_id` | Many2one → `qatar.unit.type` | Shop, Office, Apartment, Kiosk, … |
-| `unit_code` | Char | Internal unit code (ART-SHOP-G01, …) |
-| `floor` | Char | Floor number |
-| `area_sqm` | Float | Area in m² |
-| `rera_unit_ref` | Char | RERA unit reference |
-| `baladiya_ref` | Char | Baladiya reference |
-| `plot_no` | Char | Plot number |
-| `kahramaa_meter_ref` | Char | Kahramaa meter reference (capture only) |
-| `is_rentable_unit` | Boolean | Computed from `rent_ok` — display helper |
-
-**Phase 1 units to extend:**
-
-| Unit | Code | Building |
-|------|------|----------|
-| Shop G-01 | ART-SHOP-G01 | Al Rayyan Tower |
-| Office 203 | ART-OFFICE-203 | Al Rayyan Tower |
-| Apartment 1204 | ART-APT-1204 | Al Rayyan Tower |
-| Kiosk K-05 | DBC-KIOSK-K05 | Doha Business Center |
-
-**Architecture gate — Option B alternative:** Replace `product.template` extensions with `property.property` extensions if pivot chosen. Field list remains; target model changes.
+| Model | Role | Qatar extension |
+|-------|------|-----------------|
+| `x_buildings` | Building master | Add Qatar district, RERA, Baladiya, plot fields |
+| `account.analytic.account` (Properties plan) | Unit / property | Add Qatar classification, unit code, Kahramaa ref |
+| `sale.order` | Subscription contract | Link via `x_account_analytic_account_id` (industry field) — read only in Phase 2 |
+| `x_meters` / `x_meter_reading` | Utilities | No change in Phase 2 — Kahramaa workflow in Phase 7 |
+| `res.partner` | Tenants, owners | Add Qatar partner roles |
 
 ---
 
-### 3.3 `res.partner` extension
+## 3.1 `x_buildings` extension
 
-**Purpose:** Qatar partner roles for property stakeholders.
+Extend Odoo industry building model — **do not create** a parallel `property.building`.
+
+| Field (new on `x_buildings`) | Type | Description |
+|------------------------------|------|-------------|
+| `qatar_district_id` | Many2one → `qatar.district` | Qatar district |
+| `qatar_zone_id` | Many2one → `qatar.zone` | Zone / area |
+| `qatar_building_code` | Char | Internal code (e.g. ART, DBC) |
+| `qatar_rera_building_ref` | Char | RERA building reference |
+| `qatar_baladiya_ref` | Char | Baladiya reference |
+| `qatar_plot_no` | Char | Plot number |
+
+**Phase 2 demo buildings:**
+
+| Name | Code | Maps from Phase 1 |
+|------|------|-------------------|
+| Al Rayyan Tower | ART | `product.category` Al Rayyan Tower |
+| Doha Business Center | DBC | `product.category` Doha Business Center |
+
+---
+
+## 3.2 Unit — `account.analytic.account` extension (Properties plan)
+
+Units are analytic accounts on the **Properties** plan — not `product.template`.
+
+| Field (new) | Type | Description |
+|-------------|------|-------------|
+| `qatar_unit_code` | Char | ART-SHOP-G01, ART-OFF-203, … |
+| `qatar_district_id` | Many2one → `qatar.district` | District |
+| `qatar_zone_id` | Many2one → `qatar.zone` | Zone |
+| `qatar_unit_type_id` | Many2one → `qatar.unit.type` | Shop, Office, Apartment, Kiosk |
+| `qatar_floor` | Char | Floor number |
+| `qatar_area_sqm` | Float | Area m² |
+| `qatar_rera_unit_ref` | Char | RERA unit reference |
+| `qatar_baladiya_ref` | Char | Baladiya reference |
+| `qatar_plot_no` | Char | Plot number |
+| `qatar_kahramaa_meter_ref` | Char | Kahramaa meter (capture only) |
+
+Uses existing industry fields: `x_property_building_id`, `x_property_type`, `x_property_address`.
+
+**Phase 2 demo units:**
+
+| Unit | Code | Building | Industry `x_property_type` |
+|------|------|----------|--------------------------|
+| Shop G-01 | ART-SHOP-G01 | Al Rayyan Tower | Shop |
+| Office 203 | ART-OFF-203 | Al Rayyan Tower | Office |
+| Apartment 1204 | ART-APT-1204 | Al Rayyan Tower | Apartment |
+| Kiosk K-05 | DBC-KIOSK-K05 | Doha Business Center | Kiosk |
+
+---
+
+## 3.3 `res.partner` extension
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `is_property_owner` | Boolean | Property owner flag |
-| `is_property_sponsor` | Boolean | Sponsor flag |
-| `is_property_guarantor` | Boolean | Guarantor flag |
-| `is_property_tenant` | Boolean | Tenant flag (complements customer) |
-| `sponsor_id` | Many2one → `res.partner` | Linked sponsor |
-| `guarantor_id` | Many2one → `res.partner` | Linked guarantor |
-| `owner_id` | Many2one → `res.partner` | Linked owner (for tenant records) |
-| `qatar_id_type` | Selection | QID, CR, Passport, … |
+| `qatar_is_property_owner` | Boolean | Owner flag |
+| `qatar_is_property_sponsor` | Boolean | Sponsor flag |
+| `qatar_is_property_guarantor` | Boolean | Guarantor flag |
+| `qatar_is_property_tenant` | Boolean | Tenant flag |
+| `qatar_sponsor_id` | Many2one → `res.partner` | Linked sponsor |
+| `qatar_guarantor_id` | Many2one → `res.partner` | Linked guarantor |
+| `qatar_owner_id` | Many2one → `res.partner` | Linked owner |
+| `qatar_id_type` | Selection | QID, CR, Passport |
 | `qatar_id_number` | Char | ID document number |
 
-**No accounting fields** on partner in Phase 2.
+Industry package already provides `x_guarant_partner_id` on `sale.order` — align with Qatar partner roles.
 
 ---
 
-### 3.4 Master data models (new)
+## 3.4 Master data models (new — Qatar only)
 
-#### `qatar.district`
+#### `qatar.district` / `qatar.zone` / `qatar.unit.type`
 
-| Field | Type |
-|-------|------|
-| `name` | Char |
-| `code` | Char |
-
-Examples: West Bay, Al Rayyan, Al Wakra, Industrial Area (TBD with client).
-
-#### `qatar.zone`
-
-| Field | Type |
-|-------|------|
-| `name` | Char |
-| `district_id` | Many2one → `qatar.district` |
-
-#### `qatar.unit.type`
-
-| Field | Type |
-|-------|------|
-| `name` | Char |
-| `code` | Char |
-
-Examples: Shop, Office, Apartment, Kiosk, Warehouse, Villa.
+Same as prior design — BIS-owned master data, not part of industry package.
 
 ---
 
-## 4. Regulatory & Compliance Fields (capture only)
+## 4. Regulatory Fields (capture only)
 
-Phase 2 **captures** these fields — no workflow automation.
-
-| Field | Model | Phase 2 scope |
-|-------|-------|---------------|
-| RERA ref | `property.building`, `product.template` | Store + display |
-| Baladiya ref | `property.building`, `product.template` | Store + display |
-| Plot no. | `property.building`, `product.template` | Store + display |
-| Kahramaa meter ref | `product.template` | Store + display |
-
-**Deferred:**
-
-- Kahramaa transfer workflow → Phase 7 (`qatar_property_kahramaa`)
-- RERA export / compliance reports → Phase 6 (`qatar_property_reports`)
-- Legal validation of field requirements → Client workshop
+| Field | Target model |
+|-------|--------------|
+| RERA ref | `x_buildings`, `account.analytic.account` |
+| Baladiya ref | `x_buildings`, `account.analytic.account` |
+| Plot no. | `x_buildings`, `account.analytic.account` |
+| Kahramaa meter ref | `account.analytic.account` |
 
 ---
 
 ## 5. Views (planned)
 
-| View | Model | Notes |
-|------|-------|-------|
-| Building form / list / search | `property.building` | Menu under Real Estate or Rental |
-| Unit form extension | `product.template` | Qatar tab on rentable products |
-| Partner form extension | `res.partner` | Qatar Property tab |
-| District / zone / unit type config | Master data | Settings or Configuration menu |
+| View | Model |
+|------|-------|
+| Building form extension | `x_buildings` |
+| Unit / property form extension | `account.analytic.account` (Properties plan) |
+| Partner form extension | `res.partner` |
+| District / zone / unit type config | `qatar.*` master data |
 
-**No changes** to invoice, payment, or journal entry views in Phase 2.
+**No changes** to subscription invoice posting logic in Phase 2.
 
 ---
 
 ## 6. Reports
 
-### Property Register (Phase 2 only report)
+### Property Register
 
 | Column | Source |
 |--------|--------|
-| Unit name | `product.template.name` |
-| Unit code | `unit_code` |
-| Building | `building_id.name` |
-| District | `district_id.name` |
-| Unit type | `unit_type_id.name` |
-| Rentable | `rent_ok` |
-| RERA ref | `rera_unit_ref` |
-
-Output: list view + PDF/QWeb (minimal).
+| Unit name | `account.analytic.account.name` |
+| Unit code | `qatar_unit_code` |
+| Building | `x_property_building_id.x_name` |
+| District | `qatar_district_id.name` |
+| Unit type | `qatar_unit_type_id.name` or `x_property_type` |
+| Contract status | From industry computed rental status |
+| RERA ref | `qatar_rera_unit_ref` |
 
 ---
 
-## 7. Security
-
-| Model | Access |
-|-------|--------|
-| `property.building` | Real Estate User / Manager groups (TBD) |
-| `qatar.district`, `qatar.zone`, `qatar.unit.type` | Read: all internal users; Write: manager |
-| Partner / product extensions | Inherit existing product/contact access |
-
-No portal security in Phase 2.
-
----
-
-## 8. Explicitly Out of Scope (Phase 2)
+## 7. Explicitly Out of Scope (Phase 2)
 
 | Feature | Target module / phase |
 |---------|----------------------|
-| Unit reservation / hold / deposit | `qatar_property_reservation` — Phase 3 |
-| PDC cheque lifecycle | `qatar_property_pdc` — Phase 4 |
-| Rent escalation / schedules | `qatar_property_rent_schedule` — Phase 5 |
-| Arabic/English lease PDF | `qatar_property_reports` — Phase 6 |
-| Tenant / owner statements | `qatar_property_reports` — Phase 6 |
-| Tenant / owner portal | `qatar_property_portal` — Phase 7 |
-| Kahramaa workflow | `qatar_property_kahramaa` — Phase 7 |
-| Accounting posting override | **Never** in base module |
-| CRM stage automation | Phase 3+ |
-| Approval workflow changes | Phase 1 scope only |
+| Standalone building/unit model | **Not created** — use industry models |
+| `sale_renting` integration | **Not used** — industry subscriptions |
+| Reservation / PDC / portal / reports | Phases 3–7 (`qatar_property_*`) |
+| Accounting posting override | **Never** |
 
 ---
 
-## 9. Dependencies & Integration Points
+## 8. Dependencies & Integration
 
 ```
-qatar_property_base
-    ├── contacts      (res.partner extensions)
-    ├── product       (product.template extensions)
-    ├── sale_renting  (rentable units — read/extend only)
-    ├── crm           (opportunity can reference units — no override)
-    └── account       (dependency for report context only — no posting logic)
+industry_real_estate (Odoo official)
+    └── qatar_property_base
+            ├── x_buildings (Qatar fields)
+            ├── account.analytic.account (Qatar fields)
+            ├── res.partner (Qatar roles)
+            └── qatar.district / zone / unit.type (master data)
 ```
 
-**No `account.move` inherit.**  
-**No `account.payment` inherit.**  
-**No `sale.order` state override.**
+**Future addons** (all depend on `qatar_property_base`):
+
+- `qatar_property_reservation`
+- `qatar_property_pdc`
+- `qatar_property_rent_schedule`
+- `qatar_property_reports`
+- `qatar_property_portal`
+- `qatar_property_kahramaa`
 
 ---
 
-## 10. Demo Data (planned)
+## 9. Demo Data (planned)
 
-Migrate Phase 1 demo units with Qatar fields pre-filled:
+**New records** on industry model — not migration of Phase 1 `product.template` rows:
 
-- 2 buildings → `property.building` records
-- 4 units → Qatar fields on products
-- 2 customers → tenant role flags
+- 2 × `x_buildings` (Al Rayyan Tower, Doha Business Center)
+- 4 × `account.analytic.account` (Shop G-01, Office 203, Apartment 1204, Kiosk K-05)
+- 2 × tenants (Doha Trading LLC, Gulf Pharmacy W.L.L) with Qatar partner roles
+- 1 × subscription contract demo (replaces S00006 reference for Phase 2 UAT)
 - District / unit type master data
 
-Demo XML path (future): `qatar_property_base/data/`
+Phase 1 records (S00006, INV/2026/00001) remain in Phase 1 repo as historical UAT only.
 
 ---
 
-## 11. File Structure (future module)
+## 10. File Structure (future module)
 
 ```
 qatar_property_base/
 ├── __init__.py
 ├── __manifest__.py
 ├── models/
-│   ├── __init__.py
-│   ├── property_building.py
-│   ├── product_template.py
+│   ├── x_buildings.py
+│   ├── account_analytic_account.py
 │   ├── res_partner.py
 │   ├── qatar_district.py
 │   ├── qatar_zone.py
 │   └── qatar_unit_type.py
 ├── views/
-│   ├── property_building_views.xml
-│   ├── product_template_views.xml
+│   ├── x_buildings_views.xml
+│   ├── account_analytic_account_views.xml
 │   └── res_partner_views.xml
 ├── reports/
 │   └── property_register_report.xml
@@ -300,31 +258,19 @@ qatar_property_base/
 │   └── ir.model.access.csv
 └── data/
     ├── qatar_district.xml
-    ├── qatar_unit_type.xml
-    ├── qatar_building_demo.xml
-    └── qatar_unit_demo.xml
+    ├── qatar_demo_buildings.xml
+    ├── qatar_demo_units.xml
+    └── qatar_demo_partners.xml
 ```
-
----
-
-## 12. Open Design Questions (resolve in Phase 1.5)
-
-| # | Question | Blocks |
-|---|----------|--------|
-| 1 | `product.template` vs `property.property` as unit master? | Model implementation |
-| 2 | Keep `product.category` for buildings or fully migrate to `property.building`? | Data migration |
-| 3 | Add `industry_real_estate` as dependency? | Manifest depends |
-| 4 | District master list — client-provided or BIS default? | Demo data |
-| 5 | Menu placement — under Rental, Real Estate, or custom app root? | UX |
 
 ---
 
 ## References
 
+- [PHASE_1_5_ARCHITECTURE_DECISION.md](PHASE_1_5_ARCHITECTURE_DECISION.md) — Option B decision
 - [PHASE2_PLAN.md](PHASE2_PLAN.md)
-- [PHASE_1_5_ARCHITECTURE_DECISION.md](PHASE_1_5_ARCHITECTURE_DECISION.md)
-- [PHASE_2_UAT_SCENARIOS.md](PHASE_2_UAT_SCENARIOS.md)
+- Industry module: `industry_real_estate-19.0.1.3/`
 
 ---
 
-**Bright Information Systems W.L.L** · Phase 2 Module Design (Provisional) · June 2026
+**Bright Information Systems W.L.L** · Phase 2 Module Design · June 2026

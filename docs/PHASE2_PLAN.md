@@ -1,23 +1,25 @@
 # Qatar Property — Phase 2 Plan
 
 **Bright Information Systems W.L.L**  
-**Based on:** Phase 1 UAT closure (June 2026)  
+**Based on:** Phase 1 UAT closure + Phase 1.5 architecture decision (June 2026)  
 **Status:** Planning  
+**Foundation:** `industry_real_estate` (Odoo official)  
 **Target addon:** `qatar_property_base`
 
 ---
 
 ## 1. Phase 2 Summary
 
-Phase 2 introduces **Qatar Property Core** — the first custom addon layer on top of the validated Phase 1 native `sale_renting` foundation.
+Phase 2 introduces **Qatar Property Core** — Qatar-specific extensions on top of Odoo official **`industry_real_estate`**.
 
 | Attribute | Detail |
 |-----------|--------|
 | **Name** | Qatar Property Core |
-| **Module** | `qatar_property_base` |
+| **Foundation** | `industry_real_estate` (Option B — Phase 1.5 decision) |
+| **Extension module** | `qatar_property_base` |
 | **Priority** | P0 |
 | **Estimated duration** | 4–6 weeks |
-| **Depends on** | Phase 1 closed · Phase 1.5 architecture decision signed |
+| **Depends on** | Phase 1.5 decision signed · client approval before coding |
 
 **Phase 2 does not include:** PDC, reservations, rent schedules, Arabic reports, or portal — those are Phases 3–7.
 
@@ -25,28 +27,21 @@ Phase 2 introduces **Qatar Property Core** — the first custom addon layer on t
 
 ## 2. Prerequisites
 
-### 2.1 Phase 1 (complete)
+### 2.1 Phase 1 (complete — historical reference)
 
-- 6/6 Playwright UAT scenarios PASS on native `sale_renting`
-- Demo records validated: S00006, INV/2026/00001, S00007, 4 units, 2 buildings
-- No third-party property module installed
-- Cybrosys Advanced Property Management — **rejected**
-- Phase 1 repo: `bright_property_rental_phase_1`
+- 6/6 Playwright UAT scenarios PASS on native `sale_renting` (workflow validation)
+- **No custom property module** in Phase 1 — only demo data module
+- Phase 1 records (S00006, INV/2026/00001, S00007) remain **historical UAT evidence**
+- Phase 1 repo: https://github.com/Bright-Information-Systems/bright_property_rental_phase_1
 
-### 2.2 Phase 1.5 — Architecture Decision Gate (required before coding)
+### 2.2 Phase 1.5 — Architecture Decision (complete)
 
-| Option | Description | Pros | Cons |
-|--------|-------------|------|------|
-| **A — Continue `sale_renting`** | Extend product/category model + custom property master | Lower migration risk; Phase 1 UAT preserved | May diverge from Odoo industry package long-term |
-| **B — Pivot `industry_real_estate`** | Adopt official Property Management (analytic property, subscriptions) | Odoo-supported industry model | Migration from products; different contract model |
-| **C — Hybrid** | `sale_renting` short-term; industry patterns long-term | Flexible | Highest integration complexity |
-
-**Gate activities:**
-
-1. Sandbox install `industry_real_estate` in isolated database only
-2. Map 4 Phase 1 demo units to industry model
-3. Compare accounting impact vs S00006 trail
-4. Stakeholder workshop → **signed architecture decision document**
+| Decision | Value |
+|----------|--------|
+| **Selected option** | **B — Pivot to `industry_real_estate`** |
+| **Sandbox** | `qatar_property_architecture_sandbox` — install successful |
+| **Phase 1 UAT DB** | Not modified |
+| **Document** | [PHASE_1_5_ARCHITECTURE_DECISION.md](PHASE_1_5_ARCHITECTURE_DECISION.md) |
 
 **Rejected permanently:** Cybrosys Advanced Property Management.
 
@@ -54,57 +49,70 @@ Phase 2 introduces **Qatar Property Core** — the first custom addon layer on t
 
 ## 3. Business Objective
 
-Deliver Qatar-specific property master data and classification fields so the client can:
+Deliver Qatar-specific property data on the **official Odoo real estate foundation**:
 
-- Register buildings and units with Qatar regulatory metadata
-- Track owner, sponsor, and guarantor relationships on partners
-- Classify units by district, type, and compliance references (RERA, Baladiya, Plot, Kahramaa placeholder)
-- Maintain a single source of truth without breaking Phase 1 rental/accounting flows
+- Extend `x_buildings` and industry property units with Qatar regulatory metadata
+- Track owner, sponsor, and guarantor on partners
+- Classify units by district, zone, type, RERA, Baladiya, Plot, Kahramaa
+- Property register report on industry model
+- **New demo records** on `industry_real_estate` (not migration of Phase 1 products)
 
 ---
 
 ## 4. Technical Objective
 
-Build `qatar_property_base` as the foundation addon for all later `qatar_property_*` modules.
+Build `qatar_property_base` as the Qatar extension layer — **not** a standalone property system.
 
 **Principles:**
 
-- Integrate with native Odoo apps (`sale_renting`, `crm`, `contacts`, `account`)
-- No parallel accounting silo
-- No custom business logic that overrides core posting rules
-- Modular — each later phase adds a sibling addon, not a monolith
+- **Depend on `industry_real_estate`** — buildings, units, subscription contracts from industry package
+- Add Qatar fields via Python model inheritance on `x_buildings`, `account.analytic.account`, `res.partner`
+- No parallel accounting silo; no posting overrides
+- All future `qatar_property_*` modules build on this stack
+
+**Planned module chain:**
+
+```
+industry_real_estate
+  → qatar_property_base (Phase 2)
+  → qatar_property_reservation (Phase 3)
+  → qatar_property_pdc (Phase 4)
+  → qatar_property_rent_schedule (Phase 5)
+  → qatar_property_reports (Phase 6)
+  → qatar_property_portal + qatar_property_kahramaa (Phase 7)
+```
 
 ---
 
 ## 5. Scope — In Phase 2
 
-### 5.1 Data model (proposed)
+### 5.1 Data model
 
-| Area | Proposed model / extension |
-|------|---------------------------|
-| Building | `property.building` (optional) or extended `product.category` per architecture gate |
-| Unit | Extension on `product.template` **or** `property.property` per gate decision |
-| Partner roles | Extensions on `res.partner` — owner, sponsor, guarantor, tenant tags |
-| Qatar classification | District, zone, unit type, regulatory reference fields |
-| Compliance fields | RERA ref, Baladiya ref, Plot no., Kahramaa meter ref (capture only; workflow in Phase 7) |
+| Area | Model |
+|------|-------|
+| Building | Extend `x_buildings` (industry) |
+| Unit | Extend `account.analytic.account` — Properties plan (industry) |
+| Contract | Industry `sale.order` subscription (read/integrate — no override) |
+| Partner roles | Extend `res.partner` |
+| Qatar master data | `qatar.district`, `qatar.zone`, `qatar.unit.type` (new) |
 
 ### 5.2 Features
 
-- Building ↔ unit hierarchy (aligned with architecture decision)
-- Qatar district / zone classification lists
-- Partner role tagging (owner, sponsor, guarantor, tenant)
-- Unit form views with Qatar fields
-- Property register list/report (basic)
-- Demo data migration from Phase 1 units (Shop G-01, Office 203, Apartment 1204, Kiosk K-05)
+- Qatar fields on buildings and units (industry models)
+- Partner owner / sponsor / guarantor / tenant roles
+- Property register report
+- Demo data: 2 buildings, 4 units, 2 tenants — **new industry records**
+- Remap conceptually from Phase 1 units: Shop G-01, Office 203, Apartment 1204, Kiosk K-05
 
 ### 5.3 Integrations
 
 | App | Integration |
 |-----|-------------|
-| `sale_renting` | Units remain rentable; no regression on S00006 |
-| `crm` | Opportunity can reference unit with Qatar fields visible |
-| `contacts` | Partner roles and sponsor/guarantor links |
-| `account` | No new posting logic in Phase 2 |
+| `industry_real_estate` | **Required foundation** |
+| `sale_subscription` | Contracts via industry package |
+| `crm` | CRM + property opportunity flow (industry) |
+| `contacts` | Partner Qatar roles |
+| `account` | Analytic accounts — no posting override |
 
 ---
 
@@ -112,12 +120,12 @@ Build `qatar_property_base` as the foundation addon for all later `qatar_propert
 
 | Item | Target phase |
 |------|----------------|
-| Unit reservation / hold / deposit | Phase 3 — `qatar_property_reservation` |
-| PDC cheque lifecycle | Phase 4 — `qatar_property_pdc` |
-| Rent escalation / installment schedules | Phase 5 — `qatar_property_rent_schedule` |
-| Arabic/English lease PDF, tenant/owner statements | Phase 6 — `qatar_property_reports` |
-| Tenant/owner portal | Phase 7 — `qatar_property_portal` |
-| Kahramaa utility workflow | Phase 7 — `qatar_property_kahramaa` |
+| `sale_renting` product/category model | Phase 1 only (historical) |
+| Unit reservation | Phase 3 — `qatar_property_reservation` |
+| PDC cheques | Phase 4 — `qatar_property_pdc` |
+| Rent schedules | Phase 5 — `qatar_property_rent_schedule` |
+| Arabic reports | Phase 6 — `qatar_property_reports` |
+| Portal / Kahramaa | Phase 7 |
 
 ---
 
@@ -125,39 +133,40 @@ Build `qatar_property_base` as the foundation addon for all later `qatar_propert
 
 | # | Deliverable |
 |---|-------------|
-| 1 | Signed Phase 1.5 architecture decision document |
-| 2 | `qatar_property_base` Odoo module (installable on Odoo.sh) |
-| 3 | Qatar classification master data (districts, unit types) |
-| 4 | Extended unit and partner forms with Qatar fields |
+| 1 | Phase 1.5 architecture decision (Option B) — done |
+| 2 | Client approval of pivot |
+| 3 | `qatar_property_base` module (depends on `industry_real_estate`) |
+| 4 | Qatar master data + demo XML on industry models |
 | 5 | Property register report |
-| 6 | Demo data XML — migrated Phase 1 units with Qatar fields populated |
-| 7 | Phase 2 UAT scenarios (Playwright) |
-| 8 | Phase 2 documentation and handover notes |
+| 6 | Phase 2 UAT scenarios (industry subscription flow) |
+| 7 | Phase 2 documentation |
 
 ---
 
-## 8. UAT Scenarios (planned)
+## 8. UAT Scenarios (to be revised for industry flow)
 
-| # | Scenario | Proves |
-|---|----------|--------|
-| 2.1 | Install `qatar_property_base` on Phase 1 database clone | Module loads without breaking Phase 1 apps |
-| 2.2 | Open Shop G-01 — Qatar fields visible and savable | Unit extension works |
-| 2.3 | Assign owner/sponsor/guarantor on Doha Trading LLC | Partner role extensions work |
-| 2.4 | Property register lists 4 demo units with districts | Report works |
-| 2.5 | Confirm S00006 still valid — no accounting regression | Phase 1 rental trail intact |
-| 2.6 | Create new rental on unit with Qatar fields — confirm + invoice | End-to-end still works |
+Phase 1 scenarios (S00006 regression) are **replaced** by industry-model UAT. See [PHASE_2_UAT_SCENARIOS.md](PHASE_2_UAT_SCENARIOS.md) — revision required before coding.
+
+| # | Scenario (revised target) |
+|---|--------------------------|
+| 2.1 | Install `industry_real_estate` + `qatar_property_base` on Phase 2 sandbox DB |
+| 2.2 | Shop G-01 property — Qatar fields on analytic account |
+| 2.3 | Partner roles on Doha Trading LLC |
+| 2.4 | Property register — 4 industry units |
+| 2.5 | New subscription contract + invoice (replaces S00006 regression) |
+| 2.6 | CRM → subscription quotation (replaces S00007 flow) |
 
 ---
 
 ## 9. Acceptance Criteria
 
-1. Architecture decision document signed before development starts
-2. Qatar classification fields operational on all 4 demo units
-3. Owner / sponsor / guarantor roles captured on partners
-4. Property register report produces correct unit list
-5. **No regression** on S00006 accounting trail (INV/2026/00001, PBNK1/2026/00001)
-6. Playwright Phase 2 suite passes (minimum scenarios 2.1–2.6)
-7. Module installable on Odoo.sh from standalone Phase 2 repo
+1. Client approves Option B pivot before development
+2. `qatar_property_base` installs with `industry_real_estate`
+3. Qatar fields on all 4 demo units (`account.analytic.account`)
+4. Partner roles operational
+5. Property register lists 4 units across 2 buildings
+6. New subscription demo contract + invoice UAT passes
+7. Module installable on Odoo.sh
 
 ---
 
@@ -165,11 +174,10 @@ Build `qatar_property_base` as the foundation addon for all later `qatar_propert
 
 | Risk | Mitigation |
 |------|------------|
-| Architecture pivot mid-build | Phase 1.5 gate with signed decision before sprint 1 |
-| Overlap with `industry_real_estate` if pivot chosen | Model design follows gate outcome; no premature coding |
-| Accounting regression | Automated Playwright check on S00006 after every merge |
-| Demo data drift | Versioned demo XML in Phase 2 module; clone Phase 1 DB for UAT |
-| Field scope creep | Phase 2 = capture fields only; workflows deferred to later phases |
+| 136+ modules from industry package | Document Odoo.sh footprint; plan Enterprise dependencies |
+| Different contract model vs Phase 1 | New UAT on subscription flow; Phase 1 as historical reference |
+| Studio `x_*` models | Use Python inherit in `qatar_property_base` for stable extensions |
+| UAT scenario rewrite | Revise `PHASE_2_UAT_SCENARIOS.md` before sprint 1 |
 
 ---
 
@@ -177,34 +185,32 @@ Build `qatar_property_base` as the foundation addon for all later `qatar_propert
 
 | Week | Activity |
 |------|----------|
-| 1 | Phase 1.5 architecture workshop + sandbox comparison |
-| 2 | Sign decision · module scaffold · model design review |
-| 3–4 | Development — models, views, demo data |
-| 5 | Property register · partner/unit forms polish |
-| 6 | Playwright UAT · documentation · client review |
+| 1 | Client sign-off · revise UAT scenarios · module scaffold |
+| 2 | `qatar_property_base` models — extend industry models |
+| 3–4 | Views, demo data, property register |
+| 5 | Subscription demo contract UAT |
+| 6 | Playwright Phase 2 suite · documentation |
 
 ---
 
-## 12. Future Phases (reference)
+## 12. Future Phases
 
-| Phase | Name | Addon |
-|-------|------|-------|
-| 3 | Reservation Engine | `qatar_property_reservation` |
-| 4 | PDC Cheques | `qatar_property_pdc` |
-| 5 | Rent Schedules | `qatar_property_rent_schedule` |
-| 6 | Reports & Arabic | `qatar_property_reports` |
-| 7 | Portal & Kahramaa | `qatar_property_portal`, `qatar_property_kahramaa` |
-
-Full multi-phase roadmap remains in Phase 1 repo:  
-`bright_property_rental_phase_1/docs/final_documentation_pack/PHASE2_ROADMAP.md`
+| Phase | Addon | Depends on |
+|-------|-------|------------|
+| 3 | `qatar_property_reservation` | `qatar_property_base` |
+| 4 | `qatar_property_pdc` | `qatar_property_base` |
+| 5 | `qatar_property_rent_schedule` | `qatar_property_base` |
+| 6 | `qatar_property_reports` | `qatar_property_base` |
+| 7 | `qatar_property_portal`, `qatar_property_kahramaa` | `qatar_property_base` |
 
 ---
 
 ## 13. References
 
-- Phase 1 GitHub: https://github.com/Bright-Information-Systems/bright_property_rental_phase_1
-- Phase 1 use cases UC-011–UC-016 (future phases): Phase 1 `USE_CASE_CATALOG.md`
-- Phase 1 key records: S00006, S00007, 4 units, 2 buildings
+- Phase 1: https://github.com/Bright-Information-Systems/bright_property_rental_phase_1
+- Phase 2: https://github.com/Bright-Information-Systems/bright_property_rental_phase_2
+- [PHASE_1_5_ARCHITECTURE_DECISION.md](PHASE_1_5_ARCHITECTURE_DECISION.md)
+- [PHASE_2_MODULE_DESIGN.md](PHASE_2_MODULE_DESIGN.md)
 
 ---
 

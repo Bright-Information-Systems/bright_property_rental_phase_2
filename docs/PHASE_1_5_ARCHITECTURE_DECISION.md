@@ -3,8 +3,8 @@
 **Bright Information Systems W.L.L**  
 **Project:** Qatar Property Rental Management  
 **Analysis date:** June 2026  
-**Status:** **Analysis complete — pending stakeholder sign-off**  
-**Blocks:** Phase 2 development (`qatar_property_base`)
+**Status:** **Final business decision recorded**  
+**Blocks:** Phase 2 module coding (pending client approval of pivot)
 
 ---
 
@@ -13,12 +13,12 @@
 | Field | Value |
 |-------|--------|
 | **Analysis** | **Complete** (sandbox + module inspection) |
-| **Sign-off** | **Pending** — client approval required |
-| **BIS recommendation** | **Option A — Continue `sale_renting`** |
-| **Required before coding** | Stakeholder sign-off (§9) |
-| **Sandbox DB** | `qatar_property_architecture_sandbox` (isolated — not Phase 1 UAT) |
+| **Final business decision** | **Option B — Pivot to `industry_real_estate`** |
+| **Client approval before coding** | **Required** (§11) |
+| **Sandbox DB** | `qatar_property_architecture_sandbox` (isolated — Phase 1 UAT not touched) |
+| **Module path tested** | `projects/qatar_property_phase2/industry_real_estate-19.0.1.3` |
 
-> **No Phase 2 coding starts before stakeholder sign-off is recorded.**
+> **No Phase 2 module coding starts before client approves the pivot (§11).**
 
 ---
 
@@ -254,59 +254,121 @@ Installing `industry_real_estate` on sandbox pulled **136 modules**, including:
 
 ## 8. Options Summary
 
-### Option A — Continue `sale_renting` ✓ Recommended
+### Option A — Continue `sale_renting` (not selected)
 
-- Keep Phase 1 validated foundation
-- Phase 2 adds Qatar metadata on `product.template`, optional `property.building`, partner roles, property register
-- S00006 / INV/2026/00001 remain authoritative
-- Lowest risk, fastest Phase 2 delivery
-- Aligns with Phase 2 scope (metadata capture only)
+- Preserved Phase 1 UAT records without migration
+- Extended `product.template` / `product.category` for Qatar metadata
+- Rejected as long-term foundation — does not align with official Odoo property industry model
 
-### Option B — Pivot to `industry_real_estate`
+### Option B — Pivot to `industry_real_estate` ✓ **Selected**
 
-- Superior for full property-management industry demo (meters, website listings, subscriptions)
-- **Not compatible** with Phase 1 `sale_renting` UAT without full migration
-- Sandbox proved: installs 136 modules, does not use `sale_renting`
-- Defer to Phase 3+ re-evaluation if client requires subscription-native property management
+- Official Odoo industry package — real-estate-oriented foundation
+- Sandbox install **successful** on `qatar_property_architecture_sandbox`
+- Buildings (`x_buildings`), units (`account.analytic.account` / Properties plan), subscription contracts
+- Reduces custom property-structure development across Phase 2 and later phases
+- **Selected** as Qatar Property foundation from Phase 2 onward
 
-### Option C — Hybrid
+### Option C — Hybrid (not selected)
 
-- **Not recommended** — sandbox shows orthogonal models (rental orders vs subscription contracts)
-- Would duplicate units across `product.template` and `account.analytic.account`
-- Highest long-term maintenance cost
+- Dual models (`sale_renting` + industry) — rejected due to duplication and complexity
 
 ---
 
-## 9. Recommendation
+## 9. Business Rationale for Option B
+
+Phase 1 was **workflow validation only** — not a custom technical dependency:
+
+| Fact | Implication |
+|------|-------------|
+| Phase 1 used native `sale_renting` with **no custom property module** | No proprietary code to preserve — pivot is a foundation change, not a rewrite of BIS modules |
+| Phase 1 UAT DB (`qatar_property_phase1_demo`) was **not touched** by sandbox | Historical evidence remains valid as Phase 1 reference |
+| `industry_real_estate` installed **successfully** in isolated sandbox | Official package is viable on Odoo 19 Enterprise |
+| Industry model provides buildings, units, meters, subscriptions, website | Less custom scaffolding for property structure, contracts, ownership/tenant logic |
+| Qatar needs are **extensions** (RERA, Baladiya, districts, partner roles) | `qatar_property_base` adds Qatar fields on top — does not replace the industry foundation |
+
+**Rebuilding the Phase 1 demo flow is acceptable** because Phase 1 proved business workflows (rental → invoice → payment → CRM) using temporary product/category mapping. Phase 2 will recreate equivalent scenarios on the official industry model with **new demo records**.
+
+---
+
+## 10. Impact on Phase 2 and Future Phases
+
+| Impact | Detail |
+|--------|--------|
+| **No standalone property model from scratch** | Phase 2 must not reinvent building/unit master — extend `industry_real_estate` |
+| **`qatar_property_base` depends on `industry_real_estate`** | Qatar-specific fields layered on official models |
+| **Qatar fields on official models** | Extend `x_buildings`, `account.analytic.account` (Properties), `res.partner` |
+| **Future modules build on industry foundation** | All `qatar_property_*` addons depend on `industry_real_estate` + `qatar_property_base` |
+
+**Future module stack (planned):**
+
+```
+industry_real_estate          ← Odoo official foundation
+    └── qatar_property_base   ← Qatar fields + register (Phase 2)
+            ├── qatar_property_reservation   (Phase 3)
+            ├── qatar_property_pdc           (Phase 4)
+            ├── qatar_property_rent_schedule (Phase 5)
+            ├── qatar_property_reports       (Phase 6)
+            ├── qatar_property_portal        (Phase 7)
+            └── qatar_property_kahramaa      (Phase 7)
+```
+
+---
+
+## 11. Migration Note
+
+### Phase 1 records — historical UAT references only
+
+| Record | Status in Phase 2+ |
+|--------|-------------------|
+| S00006 | Historical — `sale_renting` rental order on Phase 1 DB |
+| S00007 | Historical — CRM draft rental on Phase 1 DB |
+| INV/2026/00001 | Historical — Phase 1 invoice reference |
+| PBNK1/2026/00001 | Historical — Phase 1 payment reference |
+
+These remain documented evidence in the Phase 1 repo. **Phase 2 creates new demo records** on `industry_real_estate`.
+
+### Unit remap — Phase 1 → industry model
+
+| Phase 1 unit | Code | Building (Phase 1) | Phase 2 target (industry) |
+|--------------|------|--------------------|---------------------------|
+| Shop G-01 | ART-SHOP-G01 | Al Rayyan Tower (`product.category`) | `x_buildings` + `account.analytic.account` (Shop) |
+| Office 203 | ART-OFF-203 | Al Rayyan Tower | `x_buildings` + `account.analytic.account` (Office) |
+| Apartment 1204 | ART-APT-1204 | Al Rayyan Tower | `x_buildings` + `account.analytic.account` (Apartment) |
+| Kiosk K-05 | DBC-KIOSK-K05 | Doha Business Center | `x_buildings` + `account.analytic.account` (Kiosk) |
+
+| Phase 1 building | Phase 2 target |
+|------------------|----------------|
+| Al Rayyan Tower | `x_buildings` record |
+| Doha Business Center | `x_buildings` record |
+
+---
+
+## 12. Risks (Option B — acknowledged)
+
+| Risk | Severity | Mitigation |
+|------|----------|------------|
+| Industry package pulls **136+ modules** (subscriptions, knowledge, website) | Medium | Document Odoo.sh dependencies; accept Enterprise footprint |
+| Contract flow differs from `sale_renting` (subscriptions vs rental orders) | High | New UAT suite for industry subscription flow |
+| Accounting path differs from Phase 1 S00006 trail | Medium | New demo contracts + invoices on industry model; Phase 1 records as reference only |
+| Playwright Phase 1 suite not portable | Medium | Write Phase 2 UAT from scratch (`PHASE_2_UAT_SCENARIOS.md` to be revised) |
+| Studio custom models (`x_*`) less standard than Python ORM modules | Low | Extend via `qatar_property_base` Python inherits where needed |
+| Client must approve pivot before coding | **Gate** | §13 sign-off required |
+
+---
+
+## 13. Final Decision
 
 | Field | Value |
 |-------|--------|
-| **Recommended option** | **A — Continue `sale_renting`** |
-| **Rationale** | Phase 1 is validated (6/6 UAT, S00006 accounting proven). Sandbox confirmed `industry_real_estate` uses a **different** unit model (analytic account), **different** contract model (subscription), and does **not** depend on `sale_renting`. Pivot would break the proven trail and delay Phase 2 with no benefit for current scope (Qatar metadata, partner roles, property register). |
-| **Phase 2 model target** | `product.template` + optional `property.building` + `res.partner` extensions |
-| **Re-evaluate Option B** | Phase 3+ or if client mandates Odoo industry subscription model |
-| **Estimated re-UAT if Option B chosen** | 4–6 weeks full re-UAT + migration scripts |
-
-### Conditions for future Option B reconsideration
-
-1. Client explicitly requires subscription-based leases and property website portal
-2. Formal migration budget approved for S00006 trail and 4 units
-3. Isolated pilot DB with demo data (`--with-demo`) and full accounting comparison completed
-4. `sale_renting` vs `sale_subscription` coexistence policy signed
+| **Final business decision** | **Option B — Pivot to `industry_real_estate`** |
+| **Foundation from Phase 2** | Odoo official `industry_real_estate` + `qatar_property_base` extensions |
+| **Phase 1 role** | Workflow validation reference — no custom module dependency |
+| **Sandbox evidence** | `industry_real_estate` installed on `qatar_property_architecture_sandbox` |
+| **Coding gate** | Client approval in §14 before module implementation |
 
 ---
 
-## 10. Final Decision
-
-| Field | Value |
-|-------|--------|
-| **BIS technical recommendation** | **Option A — Continue `sale_renting`** |
-| **Decision status** | **Pending client sign-off** |
-| **Effective upon** | Completion of §11 stakeholder sign-off |
-
----
-
-## 11. Stakeholder Sign-Off
+## 14. Stakeholder Sign-Off
 
 | Role | Name | Decision | Date | Signature |
 |------|------|----------|------|-----------|
@@ -321,7 +383,7 @@ Installing `industry_real_estate` on sandbox pulled **136 modules**, including:
 
 ---
 
-## 12. Gate Exit Criteria
+## 15. Gate Exit Criteria
 
 | # | Criterion | Status |
 |---|-----------|--------|
@@ -330,9 +392,11 @@ Installing `industry_real_estate` on sandbox pulled **136 modules**, including:
 | 3 | Model comparison documented | ✓ Done |
 | 4 | Unit mapping documented | ✓ Done |
 | 5 | Accounting impact assessed | ✓ Done |
-| 6 | BIS recommendation recorded | ✓ Option A |
-| 7 | Stakeholder sign-off | ☐ Pending |
-| 8 | Update `PHASE_2_MODULE_DESIGN.md` for Option A | ☐ Next step after sign-off |
+| 6 | Final business decision recorded | ✓ **Option B** |
+| 7 | `PHASE_2_MODULE_DESIGN.md` updated | ✓ Option B |
+| 8 | `PHASE2_PLAN.md` updated | ✓ Option B |
+| 9 | Client sign-off (§14) | ☐ Pending before coding |
+| 10 | Phase 2 UAT scenarios revised for industry flow | ☐ Next step |
 
 ---
 
